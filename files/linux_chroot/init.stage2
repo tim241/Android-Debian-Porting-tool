@@ -1,0 +1,50 @@
+#!/sbin/busybox sh
+
+#
+# Delayed Debian environment boot init script
+# Not really init (not pid 1) but a fork of it.
+# The real init is right now executing in Android chroot
+#
+
+/sbin/busybox echo "`/sbin/busybox date` Debian init stage2 started"
+
+# Wait for Android init to set up everything
+# wait for dev to be mounted by Android init
+/sbin/busybox echo "`/sbin/busybox date` Waiting on Android to mount /dev"
+while [ ! -e /android/dev/.coldboot_done ]; do
+   /sbin/busybox sleep 1
+done
+# wait for Android init to signal all done
+/sbin/busybox echo "`/sbin/busybox date` Waiting on Android init to finish"
+while [ -e /android/dev/.booting ]; do
+   /sbin/busybox sleep 1
+done
+
+# Mount the /proc, /sys etc filesystems
+/sbin/busybox echo "`/sbin/busybox date` Mounting /proc /sys and /dev"
+/sbin/busybox mount -t proc none /proc
+/sbin/busybox mount -t sysfs none /sys
+
+# Mount /dev from the Android world
+/sbin/busybox mount -o bind /android/dev /dev
+/sbin/busybox mount -o bind /android/dev/pts /dev/pts
+/sbin/busybox mount -o bind /android/dev/socket /dev/socket
+
+# Make mdev handle hotplug events instead of udev.
+/sbin/busybox echo /sbin/busybox mdev > /proc/sys/kernel/hotplug
+
+# All done, now we can start stuff
+
+export PATH=/sbin:/usr/sbin:/bin:/usr/bin
+
+/sbin/busybox echo "`/sbin/busybox date` Running /etc/rc.local"
+
+# Start selected servers
+export FRAMEBUFFER=/dev/graphics/fb1
+export HOME=/root
+cd /root
+/etc/init.d/rc.local start
+
+/sbin/busybox echo "`/sbin/busybox date` All done"
+
+exit 0

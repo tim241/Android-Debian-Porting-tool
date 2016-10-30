@@ -6,10 +6,10 @@ echo "Please plug in your phone through usb to continue, the script will start a
 adb 'wait-for-device'
 adb shell "getprop ro.product.device" > ${PWD}/device.txt
 device=`tr -d '\r' < device.txt`
-
 # Creating Directories
 mkdir ${PWD}/devices/$device
 mkdir ${PWD}/devices/$device/data
+mkdir ${PWD}/devices/$device/patches
 mkdir ${PWD}/devices/$device/bootimage
 
 # Pulling info from device
@@ -17,26 +17,13 @@ adb shell "ls /dev" >${PWD}/devices/$device/data/dev
 adb shell "ls /dev/input" >${PWD}/devices/$device/data/input
 adb shell "ls /dev/graphic" >${PWD}/devices/$device/data/graphic
 adb shell "ls /dev/graphics" >${PWD}/devices/$device/data/graphics
+adb shell "ls -al /dev/block/platform/*/by-name" >${PWD}/devices/$device/data/partitions
 
-# Checking the Debian.tar.gz on faults
-echo "Checking if the debian.tar.gz is corrupt or not"
-gunzip -t ${PWD}/files/debian/*.tar.gz > /dev/null 2>&1 
-if [ "$?" = "1" ]; then
-	echo "File is corrupt, aborting"
-	exit
-else
-	echo "File is not corrupt"
-fi
 
-# Copying Debian system and extracting it
-echo "Extracting Debian system, this can take a while depending on your computer."
-tar -xvf ${PWD}/files/debian/*.tar.gz -C ${PWD}/devices/$device/ > /dev/null 2>&1  || true
-mv ${PWD}/devices/$device/20151106 ${PWD}/devices/$device/sdcard
 
 # Creating some variables
 graphic=`tr -d '\r' < ${PWD}/devices/$device/data/graphic`
 graphics=`tr -d '\r' < ${PWD}/devices/$device/data/graphics`
-
 # Echo some info
 echo "Make sure this info is correct before proceeding to the next step."
 echo "Codename: $device"
@@ -47,12 +34,19 @@ if [ "$graphics" = "/dev/graphics: No such file or directory" -a "$graphic" = "/
 	exit
 else if [ "$graphic" = "/dev/graphic: No such file or directory" ]; then
 	 	echo "Framebuffer: $graphics"
+		framebuffer=$graphics
 else if [ "$graphics" = "/dev/graphics: No such file or directory" ]; then
- 			echo "Framebuffer: $graphics"
+ 			echo "Framebuffer: $graphic"
+			framebuffer=$graphic
 		
 		fi
 	fi
 fi
+
+# Creating a patch for your framebuffer
+echo "Patching chroot with your Framebuffer: $framebuffer"
+cp ${PWD}/files/linux_chroot/init.stage2 ${PWD}/devices/$device/patches/init.stage2
+sed -i -n '1' -e "s/fb1/$framebuffer/g" ${PWD}/devices/$device/patches/init.stage2
 
 
 # Done
