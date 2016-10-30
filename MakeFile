@@ -1,0 +1,7 @@
+build:
+	sh tools/scripts/build.sh
+prepare:
+	sh tools/scripts/prepare.sh
+clean:
+	rm -rf out/
+
