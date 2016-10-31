@@ -1,3 +1,5 @@
+# Note
+This porting tool is based on: http://forum.xda-developers.com/captivate-glide/general/samsung-captivate-glide-debian-chatter-t3233807 <br />
 # Setup
 1: First download this file: https://drive.google.com/file/d/0B1BaegXXFI73UUZNS1R5OFVfT0k/view?usp=sharing <br />
 2: Place that file in the ```files/debian``` folder(if the folder doesn't exist create it) <br />
@@ -15,4 +17,6 @@
 4: Install the compiled boot.img in ```out/(DEVICE_CODENAME)/compiled/boot.img``` <br />
 5: Put your phone it's sdcard in your phone again. <br />
 6: Done..now wait until it boots(If it doesn't boot then open an issue with your last_ksmg) <br />
-
+# Credit <br />
+@AlaskaLinuxUser for making this debian work on android <br />
+@tim241 for creating this porting tool based on @AlaskaLinuxUser his work <br />
