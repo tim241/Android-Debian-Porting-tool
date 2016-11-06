@@ -1,0 +1,75 @@
+#!/bin/sh
+start=$(date +%s)
+device=`tr -d '\r' < device.txt`
+
+# Make some checks
+if [ "$device" = "" ]; then
+ 	echo "Device.txt doesn't contain any info, aborting"
+	exit
+else
+	echo "Device is $device"
+fi
+if [ -f "${PWD}/devices/$device/bootimage/boot.img" ]; then
+	echo "Boot.img found"
+else
+	echo "Boot.img not found, aborting"
+	exit
+fi
+
+# Creating output directories
+mkdir ${PWD}/out
+mkdir ${PWD}/logs/$start/
+mkdir ${PWD}/out/$device/
+mkdir ${PWD}/out/$device/source
+mkdir ${PWD}/out/$device/compiled/
+cp ${PWD}/devices/$device/bootimage/boot.img ${PWD}/out/$device/source/boot.img
+./tools/bootimage/unmkbootimg ${PWD}/out/$device/source/boot.img > ${PWD}/logs/$start/unpack.log 2>&1
+./tools/bootimage/unpack-bootimg.pl ${PWD}/out/$device/source/boot.img > ${PWD}/logs/$start/unpack1.log 2>&1
+mv ${PWD}/out/$device/source/boot.img-ramdisk/ ${PWD}/out/$device/source/ramdisk/
+
+# Creating Ramdisk folders
+mkdir ${PWD}/out/$device/source/boot.img-ramdisk/
+mkdir ${PWD}/out/$device/source/boot.img-ramdisk/data
+mkdir ${PWD}/out/$device/source/boot.img-ramdisk/dev
+mkdir ${PWD}/out/$device/source/boot.img-ramdisk/mnt
+mkdir ${PWD}/out/$device/source/boot.img-ramdisk/proc
+mkdir ${PWD}/out/$device/source/boot.img-ramdisk/sbin
+mkdir ${PWD}/out/$device/source/boot.img-ramdisk/sys
+mkdir ${PWD}/out/$device/source/boot.img-ramdisk/system
+mkdir ${PWD}/out/$device/source/boot.img-ramdisk/mnt/root
+
+# Copying ramdisk files
+cp ${PWD}/files/ramdisk/init ${PWD}/out/$device/source/boot.img-ramdisk/init
+cp ${PWD}/files/ramdisk/sbin/busybox ${PWD}/out/$device/source/boot.img-ramdisk/sbin/busybox
+
+# Setting permissions
+chmod a+x ${PWD}/files/ramdisk/init ${PWD}/out/$device/source/boot.img-ramdisk/init
+chmod a+x ${PWD}/files/ramdisk/sbin/busybox ${PWD}/out/$device/source/boot.img-ramdisk/sbin/busybox
+
+# Recompiling the Ramdisk
+rm -rf ${PWD}/out/$device/source/boot.img-ramdisk.cpio.gz
+ 
+cd ${PWD}/out/$device/source/boot.img-ramdisk
+find . | cpio --quiet -H newc -o | gzip > ../initramfs.cpio.gz
+cd ../../../../
+
+# Compile the boot.img
+rm ${PWD}/initramfs.cpio.gz
+mv ${PWD}/zImage ${PWD}/out/$device/source/zImage
+cp ${PWD}/tools/bootimage/mkbootimg ${PWD}/out/$device/source/
+cd ${PWD}/out/$device/source/
+./mkbootimg --kernel zImage --ramdisk initramfs.cpio.gz --base 0x0 --cmdline 'console=ttyS1,115200n8 androidboot.selinux=permissive' -o new_boot.img 
+echo "Kernel compiled"
+cd ../../../
+
+# Copy kernel to compiled folder
+echo "Copying kernel"
+cp ${PWD}/out/$device/source/new_boot.img ${PWD}/out/$device/compiled/boot.img
+
+# Done
+end=$(date +%s)
+elapsed=$(( $end - $start ))
+echo "#################################"
+echo "# Completed in $elapsed seconds #"
+echo "#################################"
+

@@ -1,0 +1,116 @@
+#!/bin/sh
+start=$(date +%s)
+device=`tr -d '\r' < device.txt`
+
+# Make some checks
+if [ "$device" = "" ]; then
+ 	echo "Device.txt doesn't contain any info, aborting"
+	exit
+else
+	echo "Device is $device"
+fi
+if [ -f "${PWD}/devices/$device/bootimage/boot.img" ]; then
+	echo "Boot.img found"
+else
+	echo "Boot.img not found, aborting"
+	exit
+fi
+
+# Creating output directories
+mkdir ${PWD}/out
+mkdir ${PWD}/logs/$start/
+mkdir ${PWD}/out/$device/
+mkdir ${PWD}/out/$device/source
+mkdir ${PWD}/out/$device/compiled/
+cp ${PWD}/devices/$device/bootimage/boot.img ${PWD}/out/$device/source/boot.img
+./tools/bootimage/unmkbootimg ${PWD}/out/$device/source/boot.img > ${PWD}/logs/$start/unpack.log 2>&1
+./tools/bootimage/unpack-bootimg.pl ${PWD}/out/$device/source/boot.img > ${PWD}/logs/$start/unpack1.log 2>&1
+mv ${PWD}/out/$device/source/boot.img-ramdisk/ ${PWD}/out/$device/source/ramdisk/
+
+# Creating Ramdisk folders
+mkdir ${PWD}/out/$device/source/boot.img-ramdisk/
+mkdir ${PWD}/out/$device/source/boot.img-ramdisk/data
+mkdir ${PWD}/out/$device/source/boot.img-ramdisk/dev
+mkdir ${PWD}/out/$device/source/boot.img-ramdisk/mnt
+mkdir ${PWD}/out/$device/source/boot.img-ramdisk/proc
+mkdir ${PWD}/out/$device/source/boot.img-ramdisk/sbin
+mkdir ${PWD}/out/$device/source/boot.img-ramdisk/sys
+mkdir ${PWD}/out/$device/source/boot.img-ramdisk/system
+mkdir ${PWD}/out/$device/source/boot.img-ramdisk/mnt/root
+
+# Copying ramdisk files
+cp ${PWD}/files/ramdisk/init ${PWD}/out/$device/source/boot.img-ramdisk/init
+cp ${PWD}/files/ramdisk/sbin/busybox ${PWD}/out/$device/source/boot.img-ramdisk/sbin/busybox
+
+# Setting permissions
+chmod a+x ${PWD}/files/ramdisk/init ${PWD}/out/$device/source/boot.img-ramdisk/init
+chmod a+x ${PWD}/files/ramdisk/sbin/busybox ${PWD}/out/$device/source/boot.img-ramdisk/sbin/busybox
+
+# Recompiling the Ramdisk
+rm -rf ${PWD}/out/$device/source/boot.img-ramdisk.cpio.gz
+ 
+cd ${PWD}/out/$device/source/boot.img-ramdisk
+find . | cpio --quiet -H newc -o | gzip > ../initramfs.cpio.gz
+cd ../../../../
+
+# Compile the boot.img
+rm ${PWD}/initramfs.cpio.gz
+mv ${PWD}/zImage ${PWD}/out/$device/source/zImage
+cp ${PWD}/tools/bootimage/mkbootimg ${PWD}/out/$device/source/
+cd ${PWD}/out/$device/source/
+./mkbootimg --kernel zImage --ramdisk initramfs.cpio.gz --base 0x0 --cmdline 'console=ttyS1,115200n8 androidboot.selinux=permissive' -o new_boot.img 
+echo "Kernel compiled"
+cd ../../../
+
+# Checking the Debian.tar.gz on faults
+echo "Checking if the debian.tar.gz is corrupt or not"
+gunzip -t ${PWD}/files/debian/*.tar.gz  > ${PWD}/logs/$start/check.log 2>&1
+if [ "$?" = "1" ]; then
+	echo "File is corrupt, aborting"
+	exit
+else
+	echo "File is not corrupt"
+fi
+
+# Copying Debian system and extracting it
+echo "Extracting Debian system, this can take a while depending on your computer."
+tar -xvf ${PWD}/files/debian/*.tar.gz -C ${PWD}/out/$device/ > ${PWD}/logs/$start/extract.log 2>&1  || true
+mv ${PWD}/out/$device/20151106 ${PWD}/out/$device/compiled/sdcard
+
+# Adding original ramdisk
+echo "Adding original ramdisk to chroot"
+sudo rm -rf ${PWD}/out/$device/compiled/sdcard/android/
+cp -r ${PWD}/out/$device/source/ramdisk/ ${PWD}/out/$device/compiled/sdcard/android
+
+# Adding patched chroot file to chroot
+echo "Added patched init.stage2 file to your chroot"
+rm ${PWD}/out/$device/compiled/sdcard/etc/init.stage2
+cp ${PWD}/devices/$device/patches/init.stage2 ${PWD}/out/$device/compiled/sdcard/etc/init.stage2
+
+# Copy kernel to compiled folder
+echo "Copying kernel"
+cp ${PWD}/out/$device/source/new_boot.img ${PWD}/out/$device/compiled/boot.img
+
+# Creating flashable zip
+echo "##########################"
+echo "# Creating FLashable zip #"
+echo "##########################"
+mkdir ${PWD}/out/$device/compiled/flashable
+cp -r ${PWD}/files/flashable/ ${PWD}/out/$device/compiled/flashable
+echo "Repacking chroot"
+cd ${PWD}/out/$device/compiled/sdcard
+tar -zcvf ../flashable/sdcard.tar.gz * > /dev/null 2>&1  || true
+cd ../../../../
+echo "Moving chroot"
+mv ${PWD}/out/$device/compiled/flashable/sdcard.tar.gz ${PWD}/out/$device/compiled/flashable/flashable/sdcard/sdcard.tar.gz
+echo "Creating zip"
+cd ${PWD}/out/$device/compiled/flashable/flashable/
+zip -r ../../update.zip . 
+
+# Done
+end=$(date +%s)
+elapsed=$(( $end - $start ))
+echo "#################################"
+echo "# Completed in $elapsed seconds #"
+echo "#################################"
+
