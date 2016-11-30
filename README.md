@@ -6,9 +6,9 @@ This porting tool is based on: http://forum.xda-developers.com/captivate-glide/g
 3: Go to the root from the project <br />
 # Prepare the build
 1: Connect your device to your computer. (make sure you are on Cyanogenmod) <br />
-2: Type: ```make prepare -f MakeFile``` <br />
+2: Type: ```make prepare``` <br />
 # Building
-1: Type: ```make build -f MakeFile``` <br />
+1: Type: ```make build``` <br />
 2: If everything was successful then your new boot.img should be in ```out/(DEVICE_CODENAME)/compiled/boot.img```
 # Installing
 1: Connect your phone it's sdcard to your computer
